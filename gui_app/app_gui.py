@@ -1,82 +1,22 @@
-from PyQt6.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QMenuBar, QToolBar, QStatusBar, QFileDialog, QMessageBox, QDialog, QLineEdit, QPushButton, QHBoxLayout, QTableWidget, QTableWidgetItem
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QMenuBar, QToolBar, QStatusBar,
+    QFileDialog, QMessageBox, QPushButton, QHBoxLayout, QDialog
+)
 from PyQt6.QtGui import QAction, QPixmap
 from PyQt6.QtCore import Qt
 import os
 import cv2
 import random
-import pandas as pd
-import glob
 from load_model import load_model
 from service.processing import build_targets
 from service.frame_processor import frame_processor
 from c.cConst import Const
-from database.db_queries import create_users_table, insert_statistics_from_csv, fetch_users
+from database.db_queries import create_users_table, create_attendance_table, insert_attendance_from_csv
 from gui_app.components.login_register import LoginRegisterWindow
-
-class CSVViewer(QDialog):
-    def __init__(self, csv_path):
-        super().__init__()
-        self.setWindowTitle("CSV Viewer")
-        self.setGeometry(200, 200, 800, 600)
-
-        # Table widget to display CSV content
-        self.table_widget = QTableWidget(self)
-        self.table_widget.setGeometry(10, 10, 780, 580)
-
-        self.load_csv(csv_path)
-
-    def load_csv(self, csv_path):
-        try:
-            data = pd.read_csv(csv_path)
-            self.table_widget.setRowCount(len(data))
-            self.table_widget.setColumnCount(len(data.columns))
-            self.table_widget.setHorizontalHeaderLabels(data.columns)
-
-            for row_idx, row in data.iterrows():
-                for col_idx, value in enumerate(row):
-                    self.table_widget.setItem(row_idx, col_idx, QTableWidgetItem(str(value)))
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Failed to load CSV file: {e}")
-
-class StudentImageDialog(QDialog):
-    def __init__(self, img_path):
-        super().__init__()
-        self.setWindowTitle("Xem ảnh sinh viên")
-        self.setMinimumSize(400, 400)
-        layout = QVBoxLayout(self)
-        label = QLabel(self)
-        pixmap = QPixmap(img_path)
-        label.setPixmap(pixmap.scaled(350, 350, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
-        layout.addWidget(label)
-
-class StudentListDialog(QDialog):
-    def __init__(self, faces_dir):
-        super().__init__()
-        self.setWindowTitle("Quản lý sinh viên")
-        self.setMinimumSize(700, 500)
-        layout = QVBoxLayout(self)
-        self.setLayout(layout)
-        self.table = QTableWidget()
-        layout.addWidget(self.table)
-        image_paths = glob.glob(os.path.join(faces_dir, "*", "*.jpg")) + glob.glob(os.path.join(faces_dir, "*", "*.png"))
-        data = []
-        for img_path in image_paths:
-            label = os.path.basename(os.path.dirname(img_path))
-            filename = os.path.basename(img_path)
-            data.append((filename, label, img_path))
-        self.data = data  # Lưu lại để dùng khi click
-        self.table.setRowCount(len(data))
-        self.table.setColumnCount(2)
-        self.table.setHorizontalHeaderLabels(["Ảnh", "Nhãn"])
-        for row_idx, (filename, label, img_path) in enumerate(data):
-            self.table.setItem(row_idx, 0, QTableWidgetItem(filename))
-            self.table.setItem(row_idx, 1, QTableWidgetItem(label))
-        self.table.cellDoubleClicked.connect(self.show_image_dialog)
-
-    def show_image_dialog(self, row, column):
-        img_path = self.data[row][2]
-        dlg = StudentImageDialog(img_path)
-        dlg.exec()
+from gui_app.components.csv_viewer import CSVViewer
+from gui_app.components.student_list_dialog import StudentListDialog  # Đã tách ra file riêng
+from gui_app.logic.csv_logic import generate_csv_from_faces  # Đã tách ra file riêng
+from gui_app.components.user_management import UserManagementDialog  # Đảm bảo đã import
 
 class AppGUI(QMainWindow):
     def __init__(self):
@@ -84,12 +24,12 @@ class AppGUI(QMainWindow):
         self.setWindowTitle("Phenikaa Attendance System")
         self.setGeometry(100, 100, 1200, 800)
 
-        # Initialize constants
-        self.var = Const()
-        self.detector, self.recognizer = load_model()
-        self.targets = build_targets(self.detector, self.recognizer, self.var.faces_dir)
-        self.colors = {name: (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)) 
-                       for _, name in self.targets}
+        # Set main window background color and font
+        self.setStyleSheet("""
+            QMainWindow {
+                background-color: #f5f6fa;
+            }
+        """)
 
         # Central widget
         self.central_widget = QWidget()
@@ -97,31 +37,91 @@ class AppGUI(QMainWindow):
         self.layout = QVBoxLayout()
         self.central_widget.setLayout(self.layout)
 
-        # Image viewer placeholder
+        # Title label (smaller)
+        self.title_label = QLabel("PHENIKAA ATTENDANCE SYSTEM")
+        self.title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title_label.setStyleSheet("""
+            font-size: 22px;
+            font-weight: bold;
+            color: #273c75;
+            margin-top: 18px;
+            margin-bottom: 4px;
+            letter-spacing: 2px;
+        """)
+        self.layout.addWidget(self.title_label)
+
+        # Subtitle label
+        self.subtitle_label = QLabel("Smart Face Recognition for Attendance")
+        self.subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.subtitle_label.setStyleSheet("""
+            font-size: 15px;
+            color: #353b48;
+            margin-bottom: 10px;
+        """)
+        self.layout.addWidget(self.subtitle_label)
+
+        # Image viewer placeholder (bigger)
         self.image_label = QLabel("No image loaded")
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setStyleSheet("border: 2px solid #4CAF50; padding: 10px;")
-        self.layout.addWidget(self.image_label)
+        self.image_label.setStyleSheet("""
+            border: 2px solid #4CAF50;
+            padding: 10px;
+            background-color: #fff;
+            min-height: 500px;
+            font-size: 20px;
+            color: #718093;
+        """)
+        self.layout.addWidget(self.image_label, stretch=2)
 
         # Add a horizontal layout for buttons (all buttons in one row)
         self.button_layout = QHBoxLayout()
         self.layout.addLayout(self.button_layout)
 
+        # Style for buttons
+        button_style = """
+            QPushButton {
+                background-color: #273c75;
+                color: white;
+                border-radius: 8px;
+                padding: 12px 28px;
+                font-size: 16px;
+                font-weight: bold;
+                margin: 0 10px;
+            }
+            QPushButton:hover {
+                background-color: #4cd137;
+                color: #222;
+            }
+        """
+
         # Add "Process Image" button
         self.process_image_button = QPushButton("Process Image")
+        self.process_image_button.setStyleSheet(button_style)
         self.process_image_button.clicked.connect(self.process_image)
         self.button_layout.addWidget(self.process_image_button)
 
         # Add "View CSV" button
         self.view_csv_button = QPushButton("View CSV")
+        self.view_csv_button.setStyleSheet(button_style)
         self.view_csv_button.setEnabled(False)
         self.view_csv_button.clicked.connect(self.view_csv_file)
         self.button_layout.addWidget(self.view_csv_button)
 
         # Add "Quản lý sinh viên" button
         self.view_students_button = QPushButton("Quản lý sinh viên")
+        self.view_students_button.setStyleSheet(button_style)
         self.view_students_button.clicked.connect(self.show_student_management)
         self.button_layout.addWidget(self.view_students_button)
+
+        # Add "Quản lý người dùng" button
+        self.view_users_button = QPushButton("Quản lý người dùng")
+        self.view_users_button.setStyleSheet(button_style)
+        self.view_users_button.clicked.connect(self.show_user_management)
+        self.button_layout.addWidget(self.view_users_button)
+
+        # Add stretch to center buttons
+        self.button_layout.insertStretch(0, 1)
+        self.button_layout.addStretch(1)
 
         # Menu bar
         self.menu_bar = QMenuBar()
@@ -141,7 +141,15 @@ class AppGUI(QMainWindow):
         # Status bar
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
+        self.status_bar.setStyleSheet("color: #0097e6; font-size: 14px;")
         self.status_bar.showMessage("Ready")
+
+        # Initialize constants
+        self.var = Const()
+        self.detector, self.recognizer = load_model()
+        self.targets = build_targets(self.detector, self.recognizer, self.var.faces_dir)
+        self.colors = {name: (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)) 
+                       for _, name in self.targets}
 
     def process_image(self):
         if not self.detector or not self.recognizer or not self.targets:
@@ -175,14 +183,14 @@ class AppGUI(QMainWindow):
             ))
             self.status_bar.showMessage(f"Processed image saved to {output_path}")
 
-            # Generate and save statistics CSV
+            # Generate and save attendance CSV
             if detected_faces:
-                csv_filename = f"statistics_{os.path.basename(file_path).split('.')[0]}.csv"
+                csv_filename = f"attendance_{os.path.basename(file_path).split('.')[0]}.csv"
                 csv_path = os.path.join(self.var.output_images_dir, csv_filename)
-                self.generate_csv_from_faces(detected_faces, self.var.output_images_dir, csv_filename)
+                generate_csv_from_faces(detected_faces, self.var.output_images_dir, csv_filename)
 
-                # Insert statistics into the database
-                insert_statistics_from_csv(csv_path)
+                # Insert attendance into the database
+                insert_attendance_from_csv(csv_path)
 
                 # Verify if the CSV file exists before enabling the button
                 if os.path.exists(csv_path):
@@ -192,7 +200,7 @@ class AppGUI(QMainWindow):
                     self.view_csv_button.setEnabled(False)
                     QMessageBox.warning(self, "Warning", "CSV file could not be created.")
 
-                QMessageBox.information(self, "Success", f"Statistics saved to {csv_path} and database updated.")
+                QMessageBox.information(self, "Success", f"Attendance saved to {csv_path} and database updated.")
             else:
                 self.view_csv_button.setEnabled(False)
                 QMessageBox.warning(self, "Warning", "No faces detected in the image.")
@@ -203,47 +211,26 @@ class AppGUI(QMainWindow):
         if hasattr(self, 'csv_path') and os.path.exists(self.csv_path):
             try:
                 csv_viewer = CSVViewer(self.csv_path)
-                csv_viewer.exec()  # Show the CSV viewer dialog
+                csv_viewer.exec()
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to open CSV viewer: {e}")
         else:
             QMessageBox.warning(self, "Warning", "No CSV file available to view or file not found.")
 
-    def generate_csv_from_faces(self, detected_faces, output_directory, filename):
-        if not detected_faces:
-            print("No detected faces to save.")
-            return
-
-        df_faces = pd.DataFrame(detected_faces, columns=["Name", "Confidence"])
-
-        total_faces = len(detected_faces)
-        recognized_faces = sum(1 for face in detected_faces if face["Name"] != "Unknown")
-        recognition_rate = (recognized_faces / total_faces) * 100 if total_faces > 0 else 0
-
-        summary_data = {
-            "Name": ["Summary"],
-            "Confidence": [""],
-            "Total Faces": [total_faces],
-            "Recognized Faces": [recognized_faces],
-            "Recognition Rate (%)": [recognition_rate]
-        }
-        df_summary = pd.DataFrame(summary_data)
-
-        df_faces = pd.concat([df_faces, df_summary], ignore_index=True)
-
-        csv_path = os.path.join(output_directory, filename)
-        df_faces.to_csv(csv_path, index=False)
-        print(f"Statistics saved to: {csv_path}")
-
     def show_student_management(self):
         dlg = StudentListDialog(self.var.faces_dir)
+        dlg.exec()
+
+    def show_user_management(self):
+        dlg = UserManagementDialog(self)
         dlg.exec()
 
 if __name__ == "__main__":
     app = QApplication([])
 
-    # Ensure the users table exists
+    # Ensure the users and attendance tables exist
     create_users_table()
+    create_attendance_table()
 
     # Show login/register window
     login_register_window = LoginRegisterWindow()
