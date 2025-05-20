@@ -1,6 +1,8 @@
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QPushButton, QStackedWidget, QWidget, QLabel, QLineEdit, QFormLayout, QHBoxLayout
+from PyQt6.QtWidgets import QDialog, QVBoxLayout, QPushButton, QStackedWidget, QWidget, QLabel, QLineEdit, QFormLayout, QHBoxLayout, QMessageBox
 from PyQt6.QtGui import QFont, QPixmap
 from PyQt6.QtCore import Qt
+import hashlib
+from database.db_queries import insert_user, fetch_users
 
 class LoginRegisterWindow(QDialog):
     def __init__(self):
@@ -84,6 +86,10 @@ class LoginRegisterWindow(QDialog):
         self.register_phone.setPlaceholderText("Enter your phone number")
         form_layout.addRow("Phone Number:", self.register_phone)
 
+        self.register_birthday = QLineEdit()
+        self.register_birthday.setPlaceholderText("YYYY-MM-DD")
+        form_layout.addRow("Birthday:", self.register_birthday)
+
         self.register_password = QLineEdit()
         self.register_password.setEchoMode(QLineEdit.EchoMode.Password)
         self.register_password.setPlaceholderText("Enter your password")
@@ -118,21 +124,37 @@ class LoginRegisterWindow(QDialog):
         self.stacked_widget.setCurrentWidget(self.register_page)
 
     def handle_login(self):
-        username = self.login_username.text()
+        username = self.login_username.text().strip()
         password = self.login_password.text()
-        # Add login logic here
-        print(f"Logging in with {username} and {password}")
-        self.accept()
+        if not username or not password:
+            QMessageBox.warning(self, "Lỗi", "Vui lòng nhập đầy đủ thông tin.")
+            return
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        users = fetch_users()
+        # users: [(id, name, email, phone, birthday, password_hash, created_at), ...]
+        for user in users:
+            if username == user[1] and password_hash == user[5]:
+                self.accept()
+                return
+        QMessageBox.warning(self, "Lỗi", "Sai tên đăng nhập hoặc mật khẩu.")
 
     def handle_register(self):
-        username = self.register_username.text()
-        email = self.register_email.text()
-        phone = self.register_phone.text()
+        username = self.register_username.text().strip()
+        email = self.register_email.text().strip()
+        phone = self.register_phone.text().strip()
+        birthday = self.register_birthday.text().strip()
         password = self.register_password.text()
         confirm_password = self.register_confirm_password.text()
-        if password != confirm_password:
-            print("Passwords do not match!")
+        if not username or not email or not phone or not birthday or not password or not confirm_password:
+            QMessageBox.warning(self, "Lỗi", "Vui lòng nhập đầy đủ thông tin.")
             return
-        # Add register logic here
-        print(f"Registering {username} with email {email}, phone {phone}, and password {password}")
-        self.accept()
+        if password != confirm_password:
+            QMessageBox.warning(self, "Lỗi", "Mật khẩu không khớp.")
+            return
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        try:
+            insert_user(username, email, phone, birthday, password_hash)
+            QMessageBox.information(self, "Thành công", "Đăng ký thành công! Bạn có thể đăng nhập.")
+            self.show_login_page()
+        except Exception as e:
+            QMessageBox.critical(self, "Lỗi", f"Đăng ký thất bại: {e}")

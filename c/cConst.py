@@ -12,4 +12,4 @@ class Const:
     output_images_dir = "./output_images/"  # ảnh đầu ra
     max_num = 0  #số khuân mặt tối thiểu
     max_frame = 100
-   
+    camera_index = 0  # Chỉ số camera mặc định (0 là webcam tích hợp, 1 là camera ngoài nếu có)

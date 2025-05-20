@@ -37,6 +37,9 @@ def create_users_table():
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL,
                     email TEXT UNIQUE NOT NULL,
+                    phone TEXT,
+                    birthday TEXT,
+                    password_hash TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             ''')
@@ -71,19 +74,23 @@ def create_attendance_table():
         finally:
             close_connection(conn)
 
-def insert_user(name, email):
+def insert_user(name, email, phone, birthday, password_hash):
     """
     Insert a new user into the users table.
     :param name: User's name
     :param email: User's email
+    :param phone: User's phone
+    :param birthday: User's birthday
+    :param password_hash: User's password hash
     """
     conn = create_connection("database/system.db")
     if conn:
         try:
             cursor = conn.cursor()
             cursor.execute('''
-                INSERT INTO users (name, email) VALUES (?, ?)
-            ''', (name, email))
+                INSERT INTO users (name, email, phone, birthday, password_hash)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (name, email, phone, birthday, password_hash))
             conn.commit()
             print("User inserted successfully.")
         except Exception as e:
@@ -96,12 +103,13 @@ def fetch_users():
     Fetch all users from the users table.
     :return: List of users
     """
+    # Đảm bảo bảng users tồn tại trước khi truy vấn
     create_users_table()
     import sqlite3
-    conn = sqlite3.connect('system.db')
+    conn = sqlite3.connect('database/system.db')
     cursor = conn.cursor()
-    # Đúng với cấu trúc bảng users hiện tại
-    cursor.execute("SELECT id, name, email, created_at FROM users")
+    # Trả về đầy đủ các trường
+    cursor.execute("SELECT id, name, email, phone, birthday, password_hash, created_at FROM users")
     users = cursor.fetchall()
     conn.close()
     return users
@@ -111,6 +119,8 @@ def insert_attendance_from_csv(csv_path):
     Insert data from a CSV file into the attendance table.
     :param csv_path: Path to the CSV file
     """
+    # Đảm bảo bảng attendance tồn tại trước khi insert
+    create_attendance_table()
     conn = create_connection("database/system.db")
     if conn:
         try:

@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QFileDialog, QMessageBox, QPushButton, QHBoxLayout, QDialog
 )
 from PyQt6.QtGui import QAction, QPixmap
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 import os
 import cv2
 import random
@@ -17,6 +17,7 @@ from gui_app.components.csv_viewer import CSVViewer
 from gui_app.components.student_list_dialog import StudentListDialog  # Đã tách ra file riêng
 from gui_app.logic.csv_logic import generate_csv_from_faces  # Đã tách ra file riêng
 from gui_app.components.user_management import UserManagementDialog  # Đảm bảo đã import
+from utils.save_log import Logger_Days  # Thêm import logger
 
 class AppGUI(QMainWindow):
     def __init__(self):
@@ -119,6 +120,13 @@ class AppGUI(QMainWindow):
         self.view_users_button.clicked.connect(self.show_user_management)
         self.button_layout.addWidget(self.view_users_button)
 
+        # Add "Dùng Camera" button
+        self.camera_button = QPushButton("Bật Camera nhận diện")
+        self.camera_button.setStyleSheet(button_style)
+        self.camera_button.setCheckable(True)
+        self.camera_button.clicked.connect(self.toggle_camera)
+        self.button_layout.addWidget(self.camera_button)
+
         # Add stretch to center buttons
         self.button_layout.insertStretch(0, 1)
         self.button_layout.addStretch(1)
@@ -133,6 +141,7 @@ class AppGUI(QMainWindow):
 
         # Tool bar
         self.tool_bar = QToolBar()
+        # Sửa lỗi: Qt.ToolBarArea.TopToolArea -> Qt.ToolBarArea.TopToolBarArea
         self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self.tool_bar)
         process_action = QAction("Process Image", self)
         process_action.triggered.connect(self.process_image)
@@ -150,6 +159,14 @@ class AppGUI(QMainWindow):
         self.targets = build_targets(self.detector, self.recognizer, self.var.faces_dir)
         self.colors = {name: (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255)) 
                        for _, name in self.targets}
+        self.logger = Logger_Days("system")  # Ghi log vào file system.log
+        self.logger.info("AppGUI started.")
+
+        # Camera variables
+        self.camera_active = False
+        self.cap = None
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.capture_camera_frame)
 
     def process_image(self):
         if not self.detector or not self.recognizer or not self.targets:
@@ -162,6 +179,7 @@ class AppGUI(QMainWindow):
 
         try:
             self.status_bar.showMessage("Processing image...")
+            self.logger.info(f"Processing image: {file_path}")
 
             img = cv2.imread(file_path)
             detected_faces = []  # List to store detection results
@@ -200,11 +218,15 @@ class AppGUI(QMainWindow):
                     self.view_csv_button.setEnabled(False)
                     QMessageBox.warning(self, "Warning", "CSV file could not be created.")
 
+                self.logger.info(f"Detected faces: {len(detected_faces)}. Saved CSV: {csv_path}")
+                self.logger.info(f"Attendance saved to {csv_path} and database updated.")
                 QMessageBox.information(self, "Success", f"Attendance saved to {csv_path} and database updated.")
             else:
+                self.logger.warning("No faces detected in the image.")
                 self.view_csv_button.setEnabled(False)
                 QMessageBox.warning(self, "Warning", "No faces detected in the image.")
         except Exception as e:
+            self.logger.error(f"Failed to process image: {e}")
             QMessageBox.critical(self, "Error", f"Failed to process image: {e}")
 
     def view_csv_file(self):
@@ -224,6 +246,49 @@ class AppGUI(QMainWindow):
     def show_user_management(self):
         dlg = UserManagementDialog(self)
         dlg.exec()
+
+    def toggle_camera(self):
+        if not self.camera_active:
+            self.cap = cv2.VideoCapture(self.var.camera_index)
+            if not self.cap or not self.cap.isOpened():
+                QMessageBox.critical(self, "Error", f"Không thể mở camera (index {self.var.camera_index}). Vui lòng kiểm tra lại thiết bị.")
+                self.camera_active = False
+                self.camera_button.setChecked(False)
+                return
+            self.camera_active = True
+            self.camera_button.setText("Tắt Camera")
+            self.timer.start(30)  # 30 ms ~ 33 FPS
+        else:
+            self.camera_active = False
+            self.camera_button.setText("Bật Camera nhận diện")
+            self.timer.stop()
+            if self.cap:
+                self.cap.release()
+                self.cap = None
+            self.image_label.setText("No image loaded")
+
+    def capture_camera_frame(self):
+        if self.cap and self.camera_active:
+            ret, frame = self.cap.read()
+            if not ret:
+                return
+            detected_faces = []
+            processed_img = frame_processor(
+                frame, self.detector, self.recognizer, self.targets,
+                self.colors, self.var, detected_faces=detected_faces
+            )
+            # Convert processed_img (BGR) to QPixmap and show
+            rgb_img = cv2.cvtColor(processed_img, cv2.COLOR_BGR2RGB)
+            h, w, ch = rgb_img.shape
+            bytes_per_line = ch * w
+            from PyQt6.QtGui import QImage
+            qt_img = QImage(rgb_img.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+            pixmap = QPixmap.fromImage(qt_img)
+            self.image_label.setPixmap(pixmap.scaled(
+                self.image_label.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation
+            ))
 
 if __name__ == "__main__":
     app = QApplication([])
