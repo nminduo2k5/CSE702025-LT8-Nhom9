@@ -139,3 +139,35 @@ def insert_attendance_from_csv(csv_path):
             print(f"Error inserting attendance from CSV: {e}")
         finally:
             close_connection(conn)
+
+def update_user(user_id, name, email, phone, birthday):
+    """
+    Update user info (except password) by id.
+    """
+    conn = create_connection("database/system.db")
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE users SET name=?, email=?, phone=?, birthday=? WHERE id=?
+            ''', (name, email, phone, birthday, user_id))
+            conn.commit()
+        except Exception as e:
+            print(f"Error updating user: {e}")
+        finally:
+            close_connection(conn)
+
+def delete_user(user_id):
+    """
+    Delete user by id.
+    """
+    conn = create_connection("database/system.db")
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM users WHERE id=?', (user_id,))
+            conn.commit()
+        except Exception as e:
+            print(f"Error deleting user: {e}")
+        finally:
+            close_connection(conn)

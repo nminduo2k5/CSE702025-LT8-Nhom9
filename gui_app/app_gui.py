@@ -14,7 +14,7 @@ from c.cConst import Const
 from database.db_queries import create_users_table, create_attendance_table, insert_attendance_from_csv
 from gui_app.components.login_register import LoginRegisterWindow
 from gui_app.components.csv_viewer import CSVViewer
-from gui_app.components.student_list_dialog import StudentListDialog  # Đã tách ra file riêng
+from gui_app.components.student_list_dialog import StudentListDialog  # Đúng: chỉ import StudentListDialog
 from gui_app.logic.csv_logic import generate_csv_from_faces  # Đã tách ra file riêng
 from gui_app.components.user_management import UserManagementDialog  # Đảm bảo đã import
 from utils.save_log import Logger_Days  # Thêm import logger

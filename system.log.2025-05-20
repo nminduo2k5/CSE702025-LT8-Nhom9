@@ -1,0 +1,14 @@
+2025/05/20 21:44:06 save_log,line: 15     INFO | +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+2025/05/20 21:44:06 save_log,line: 16     INFO | Logger object created successfully..
+2025/05/20 21:44:06 app_gui,line: 156     INFO | AppGUI started.
+2025/05/20 21:52:57 save_log,line: 15     INFO | +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+2025/05/20 21:52:57 save_log,line: 16     INFO | Logger object created successfully..
+2025/05/20 21:52:57 app_gui,line: 163     INFO | AppGUI started.
+2025/05/20 22:01:35 save_log,line: 15     INFO | +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+2025/05/20 22:01:35 save_log,line: 16     INFO | Logger object created successfully..
+2025/05/20 22:01:35 app_gui,line: 163     INFO | AppGUI started.
+2025/05/20 22:02:57 app_gui,line: 182     INFO | Processing image: C:/Users/duong/OneDrive_duong/Documents/GitHub/CSE702025-LT8-Nhom9/query/rosi.jpg
+2025/05/20 22:02:58 app_gui,line: 225  WARNING | No faces detected in the image.
+2025/05/20 22:03:05 app_gui,line: 182     INFO | Processing image: C:/Users/duong/OneDrive_duong/Documents/GitHub/CSE702025-LT8-Nhom9/query/class.jpg
+2025/05/20 22:03:25 app_gui,line: 221     INFO | Detected faces: 64. Saved CSV: ./output_images/attendance_class.csv
+2025/05/20 22:03:25 app_gui,line: 222     INFO | Attendance saved to ./output_images/attendance_class.csv and database updated.
